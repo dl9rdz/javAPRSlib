@@ -174,7 +174,11 @@ public class PositionPacket extends InformationField implements java.io.Serializ
 			return new String(rawBytes);
 		if (compressedFormat)
 			return (canMessage ? "=" : "!") + position.toCompressedString() + comment;
-		return (canMessage ? "=" : "!") + position + comment;
+		String dao = "";
+		if(position.getPositionAmbiguity()<0) {
+			dao = position.getDAO();
+		}
+		return (canMessage ? "=" : "!") + position + comment + dao;
 	}
 
 	/**

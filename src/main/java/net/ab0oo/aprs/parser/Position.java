@@ -28,12 +28,15 @@ import java.util.Locale;
  * This class represents a Position as specified by the APRS specification.  This includes
  * a symbol table and actual symbol, and a possible timestamp.
  *
+ * A negative positionAmbiguity indicates high-precision position with DAO extension
+ * -1: single digit (plaintext) DAO
+ * -2: radix91 DAO
  */
 public class Position implements java.io.Serializable {
 	private static final long serialVersionUID = 1L;
-	private Double latitude = 0d, longitude = 0d;
-	private Integer altitude = -1;
-	private Integer positionAmbiguity;
+	private double latitude = 0d, longitude = 0d;
+	private int altitude = -1;
+	private int positionAmbiguity;
 	private Date timestamp;
 	private char symbolTable, symbolCode;
 	private String csTField = " sT";
@@ -43,8 +46,9 @@ public class Position implements java.io.Serializable {
 	}
 	
 	public Position(double lat, double lon, int posAmb, char st, char sc) {
-		this.latitude = Math.round(lat * 100000) * 0.00001D;
-		this.longitude = Math.round(lon * 100000) * 0.00001D;
+		// no more rounding here
+		this.latitude = lat;
+		this.longitude = lon;
 		this.positionAmbiguity = posAmb;
 		this.symbolTable = st;
 		this.symbolCode = sc;
@@ -52,8 +56,11 @@ public class Position implements java.io.Serializable {
 	}
 	
 	public Position(double lat, double lon) {
-		this.latitude = Math.round(lat * 100000) * 0.00001D;
-		this.longitude = Math.round(lon * 100000) * 0.00001D;
+		// no more rounding here
+		this.latitude = lat;
+		this.longitude = lon;
+		//this.latitude = Math.round(lat * 100000) * 0.00001D;
+		//this.longitude = Math.round(lon * 100000) * 0.00001D;
 		this.positionAmbiguity=0;
 		this.symbolTable = '\\';
 		this.symbolCode = '.';
@@ -64,6 +71,7 @@ public class Position implements java.io.Serializable {
 	 * @return the latitude
 	 */
 	public double getLatitude() {
+		if(this.positionAmbiguity>=0) return Math.round(latitude * 100000) * 0.00001D;
 		return latitude;
 	}
 
@@ -78,6 +86,7 @@ public class Position implements java.io.Serializable {
 	 * @return the longitude
 	 */
 	public double getLongitude() {
+		if(this.positionAmbiguity>=0) return Math.round(longitude * 100000) * 0.00001D;
 		return longitude;
 	}
 
@@ -157,15 +166,53 @@ public class Position implements java.io.Serializable {
 	public void setSymbolCode(char symbolCode) {
 		this.symbolCode = symbolCode;
 	}
+
+	private static int dao91(double x) {
+		/* radix91(xx/1.1) of dddmm.mmxx */
+		/* we must make sure that rounding is exactly the same as in getDMS */
+		int minFrac = (int)Math.round(x*600000);
+		boolean negative = (minFrac < 0);
+		if(negative) minFrac = -minFrac;
+		//int deg = minFrac / 600000;
+		//int min = (minFrac/10000) % 60;
+		minFrac = minFrac % 10000;
+
+		int res = ( (minFrac%100)*20+11)/22;	
+		System.out.println("dao91 of "+x+" => minfrac "+minFrac+" base91="+res);
+		return res;
+	}
+	private static int daosingle(double x) {
+		/* we must make sure that rounding is exactly the same as in getDMS */
+		int minFrac = (int)Math.round(x*600000);
+		boolean negative = (minFrac < 0);
+		if(negative) minFrac = -minFrac;
+		//int deg = minFrac / 600000;
+		//int min = (minFrac/10000) % 60;
+		minFrac = minFrac % 10000;
+
+		int res = (minFrac%100)/10;
+		System.out.println("daosingle of "+x+" => minfrac "+minFrac+" digit="+res);
+		return res;
+	}
+
+	public String getDAO() {
+		if(positionAmbiguity>=0) {
+			return "";
+		}
+		if(positionAmbiguity==-1) {
+			return "!w"+daosingle(latitude)+daosingle(longitude)+"!";
+		}
+		return "!w"+(char)(dao91(latitude)+33)+(char)(dao91(longitude)+33)+"!";
+	}
 	
 	public String getDMS(double decimalDegree, boolean isLatitude) {
-			int minFrac = (int)Math.round(decimalDegree*6000); ///< degree in 1/100s of a minute
+			int minFrac = (int)Math.round(decimalDegree*600000); ///< degree in 1/100s of a minute
 			boolean negative = (minFrac < 0);
 			if (negative)
 					minFrac = -minFrac;
-			int deg = minFrac / 6000;
-			int min = (minFrac / 100) % 60;
-			minFrac = minFrac % 100;
+			int deg = minFrac / 600000;
+			int min = (minFrac / 10000) % 60;
+			minFrac = positionAmbiguity >= 0 ? (int)Math.round((minFrac % 10000)*0.01) : (minFrac%10000)/100;
 			String ambiguousFrac;
 
 			switch (positionAmbiguity) {
@@ -193,7 +240,7 @@ public class Position implements java.io.Serializable {
 	}
 	
 	public String toDecimalString() {
-		return latitude+", "+longitude;
+		return getLatitude()+", "+getLongitude();
 	}
 
 	public void setCsTField(String val) {
@@ -273,13 +320,21 @@ public class Position implements java.io.Serializable {
 
 	public static void main(String[] args) {
 		Position pos = new Position();
-		pos.setLatitude(34.12558);
+		pos.setPositionAmbiguity(-1);
+		pos.setLatitude(34.1255911);
 		pos.setLongitude(-84.13697);
 		pos.setSymbolCode('o');
 		pos.setSymbolTable('/');
 		System.out.println("latitude is "+pos.getLatitude());
 		System.out.println("Position string is "+pos.toString());
+		System.out.println("Position DAO string is "+pos.getDAO());
 		System.out.println("Compressed string is "+pos.toCompressedString());
+
+		System.out.println("dao(15) is "+dao91(15));
+		System.out.println("dao(15°00.04) is "+dao91(15+4.0/6000));
+		System.out.println("dao(15°00.043) is "+dao91(15+4.3/6000));
+		System.out.println("dao(-15°00.043) is "+dao91(-15-4.3/6000));
+		System.out.println("dao(15°00.0499) is "+dao91(-15-4.99/6000));
 	}
 
 }

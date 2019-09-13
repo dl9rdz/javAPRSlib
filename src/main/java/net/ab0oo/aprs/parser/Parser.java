@@ -54,10 +54,18 @@ public class Parser {
 					System.out.println("    Messaging:	" + data.canMessage);
 					System.out.println("    Comment:	" + data.getComment());
 					System.out.println("    Extension:	" + data.getExtension());
-					if (data instanceof PositionPacket)
-						System.out.println("    Position:       " + ((PositionPacket)data).getPosition());
-					if (data instanceof ObjectPacket)
-						System.out.println("    Position:       " + ((ObjectPacket)data).getPosition());
+					if (data instanceof PositionPacket) {
+						Position p = ((PositionPacket)data).getPosition();
+						System.out.println("    Position:       " + p + p.getDAO());
+						System.out.println("    Latitude:       " + p.getLatitude());
+						System.out.println("    Longitude:      " + p.getLongitude());
+					}	
+					if (data instanceof ObjectPacket) {
+						Position p = ((PositionPacket)data).getPosition();
+						System.out.println("    Position:       " + p + p.getDAO());
+						System.out.println("    Latitude:       " + p.getLatitude());
+						System.out.println("    Longitude:      " + p.getLongitude());
+					}
 				}
 			} catch ( Exception ex ) {
 				System.err.println("Unable to parse:  "+ex);

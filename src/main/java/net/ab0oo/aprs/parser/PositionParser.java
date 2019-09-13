@@ -119,7 +119,9 @@ public class PositionParser {
                 longitude = 0.0F - longitude;
             else if (lngh != 'e' && lngh != 'E')
                 throw new Exception("Bad longitude sign character");
-            return new Position(latitude, longitude, positionAmbiguity, symbolTable, symbolCode);
+            Position position = new Position(latitude, longitude, positionAmbiguity, symbolTable, symbolCode);
+	    parseDAO(msgBody, cursor, position);
+	    return position;
         } catch (Exception e) {
             throw new Exception(e);
         }
@@ -597,12 +599,41 @@ public class PositionParser {
             throw new Exception("Bad minutes value - 60.0 or over");
         // return result
         result += minutes / 60.0D;
-        result = Math.round(result * 100000.0) * 0.00001D;
+        // no rounding here.... result = Math.round(result * 100000.0) * 0.00001D;
         if (degSize == 2 && result > 90.01D)
             throw new Exception("Latitude value too high");
         if (degSize == 3 && result > 180.01F)
             throw new Exception("Longitude value too high");
         return result;
+    }
+
+    private static void parseDAO(byte[] msgBody, int cursor, Position pos) {
+	System.out.println("ParseDAO called");
+	// Scan msgBody backwards for DAO field
+	for(int i=msgBody.length-5; i>=cursor; i--) {
+	   if(msgBody[i]=='!' && msgBody[i+4]=='!') {
+		System.out.println("Something at i="+i);
+		byte daoType = msgBody[i+1];
+		double latofs=0, lonofs=0;
+		if(daoType>='A'&&daoType<='Z') {  // simple
+			System.out.println("simple");
+			latofs = (int)(msgBody[i+2]-'0')/60000.0D;
+			lonofs = (int)(msgBody[i+3]-'0')/60000.0D;
+			pos.setPositionAmbiguity(-1);
+		} else if(daoType>='a'&&daoType<='z') { // radix91
+			System.out.println("radix91");
+			latofs = (int)(msgBody[i+2]-33)*1.1/600000.0D;
+			lonofs = (int)(msgBody[i+3]-33)*1.1/600000.0D;
+			pos.setPositionAmbiguity(-2);
+		}
+		System.out.println("daotype "+daoType+", latofs="+latofs+", lonofs="+lonofs);
+		double lat = pos.getLatitude();
+		pos.setLatitude( lat<0 ? lat-latofs : lat+latofs );
+		double lon = pos.getLongitude();
+		pos.setLongitude( lon<0 ? lon-lonofs : lon+lonofs );
+		System.out.println("base: lat="+lat+", lon="+lon);
+	   }
+	}
     }
 
     /*
