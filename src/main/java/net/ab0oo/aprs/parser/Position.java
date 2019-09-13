@@ -200,7 +200,7 @@ public class Position implements java.io.Serializable {
 			return "";
 		}
 		if(positionAmbiguity==-1) {
-			return "!w"+daosingle(latitude)+daosingle(longitude)+"!";
+			return "!W"+daosingle(latitude)+daosingle(longitude)+"!";
 		}
 		return "!w"+(char)(dao91(latitude)+33)+(char)(dao91(longitude)+33)+"!";
 	}
